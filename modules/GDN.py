@@ -1,23 +1,34 @@
-# End To End Compression
+import torch
+from torch import nn
+from torch.nn import functional as F
+from torch.autograd import Function
 
-Our team's work on USTC iVC Seminar programming playground. 
 
-## Baseline
+class SetMinBoundary(Function):
+    """
+    Set parameter in GDN to min boundary after each gradient step which is 2^-5 in the paper.
+    """
 
-We use the framework proposed in the following paper as our work's baseline.
+    @staticmethod
+    def forward(ctx, input, min_boundary):
+        b = torch.ones_like(input) * min_boundary
+        ctx.save_for_backward(input, b)
+        return torch.max(input, b)
 
-Ballé J, Laparra V, Simoncelli E P. End-to-end optimized image compression[J]. arXiv preprint arXiv:1611.01704, 2016.
+    @staticmethod
+    def backward(ctx, grad_output):
+        """
+        :param grad_output: gradient from previous layer
+        :return: grandient
+        """
+        input, b = ctx.saved_tensors
+        passthrough_map = input > b
+        return passthrough_map.type(grad_output.dtype) * grad_output,None
 
-The paper is available [here](https://arxiv.org/pdf/1611.01704.pdf).
 
-## Framework
-
-### GDN
-
-```python
 class GDN(nn.Module):
     def __init__(self, num_output_channel, beta_min=1e-6, beta_init=0.1, gamma_min=1e-6, gamma_init=0.1,
-                 min_boundary=2e-5, inverse=False):
+                 min_boundary=2**-5, inverse=False):
         """
         :param beta_min: a small positive value to ensure beta' in range(2e-5,...)
         :param gamma_init: gamma initiated value
@@ -59,8 +70,9 @@ class GDN(nn.Module):
         else:
             outputs = inputs / norm
         return outputs
-```
 
-## Support or Contact
 
-You may contact us via our website on https://ustc-ivcseminar-team2.github.io/end-to-end_compression/.
+if __name__ == '__main__':
+    a = torch.randn(4,2,2)
+    b = torch.round(a)
+    print(a)
