@@ -37,9 +37,3 @@ class Analysis_Net(nn.Module):
         x3 = self.gdn3(self.conv3(x2))
         y = self.conv4(x3)  # y in shape of [B,M,16,16]
         return y
-
-if __name__ == '__main__':
-    x = torch.randn((8,3,16,16))
-    a = Analysis_Net()
-    y = a(x)
-    print(y.size())

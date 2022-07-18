@@ -40,10 +40,3 @@ class Synthesis_Net(nn.Module):
         x1 = self.igdn3(self.deconv3(x2))
         x_hat = self.deconv4(x1)  # x_hat in shape of [B,3,256,256]
         return x_hat
-
-
-if __name__ == '__main__':
-    x = torch.randn((8, 192, 16, 16))
-    a = Synthesis_Net()
-    y = a(x)
-    print(y.size())
