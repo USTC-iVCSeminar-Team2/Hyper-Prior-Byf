@@ -10,8 +10,8 @@ class ImageCompressor(nn.Module):
         self.a = a
         self.h = h
         self.device = torch.device('cuda:{:d}'.format(rank))
-        self.encoder = Analysis_net(192)
-        self.decoder = Synthesis_net(192)
+        self.encoder = Analysis_Net()
+        self.decoder = Synthesis_Net()
         self.bit_estimator = BitsEstimator(192, K=5)
         self.entropy_coder = EntropyCoder(self.bit_estimator)
 
