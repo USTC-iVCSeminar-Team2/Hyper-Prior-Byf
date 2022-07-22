@@ -180,14 +180,14 @@ def main():
         '--Lambda': The lambda setting for RD loss
     '''
 
-    parser.add_argument('--model_name', default='image_compressor', type=str)
+    parser.add_argument('--model_name', default='HyperPrior', type=str)
     parser.add_argument('--training_dir', default=r'E:\dataset\vimoe\train', type=str)
     parser.add_argument('--validation_dir', default=r'E:\dataset\vimoe\test', type=str)
     parser.add_argument('--checkpoint_path', default='./checkpoint', type=str)
-    parser.add_argument('--config_file', default=r'E:\Git_repos\end-to-end_compression\configs\config.json', type=str)
+    parser.add_argument('--config_file', default=r'E:\Git_repos\Hyper-Prior-Byf\configs\config.json', type=str)
     parser.add_argument('--training_epochs', default=3000, type=int)
     parser.add_argument('--stdout_interval', default=5, type=int)
-    parser.add_argument('--checkpoint_interval', default=5000, type=int)
+    parser.add_argument('--checkpoint_interval', default=500, type=int)
     parser.add_argument('--summary_interval', default=100, type=int)
     parser.add_argument('--validation_interval', default=1000, type=int)
     parser.add_argument('--fine_tuning', default=False, type=bool)

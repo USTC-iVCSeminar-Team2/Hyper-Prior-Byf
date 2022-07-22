@@ -1,10 +1,5 @@
-"""
-for doing experiment
-"""
-import torch
+from PIL import Image
 import numpy as np
 
-x = torch.tensor(-3.,requires_grad=True)
-y = x
-y.backward()
-print(x.grad)
+img = Image.open(r"C:\Users\EsakaK\Desktop\1.png")
+print(np.array(img)[:,:,3])

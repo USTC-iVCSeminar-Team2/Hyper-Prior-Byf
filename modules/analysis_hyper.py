@@ -1,6 +1,5 @@
 import torch.nn as nn
 import torch
-from GDN import GDN
 import math
 
 

@@ -54,10 +54,10 @@ class BitsEstimator(nn.Module):
     def forward(self, inputs):
         # permute
         size = inputs.size()
-        x = inputs.permute((1, 0, 2, 3)).reshape(self.num_channel,1,-1)
+        x = inputs.permute(1, 0, 2, 3).reshape(self.num_channel,1,-1)
         for unit in self.units:
             x = unit(x)
-        p = x.reshape(self.num_channel,size[0],*size[2:]).permute((1,0,2,3))
+        p = x.reshape(self.num_channel,size[0],*size[2:]).permute(1,0,2,3)
         return p 
 
 
