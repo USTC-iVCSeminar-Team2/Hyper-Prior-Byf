@@ -4,17 +4,17 @@ from modules import *
 
 
 class HyperPrior(nn.Module):
-    def __init__(self, a, h, rank) -> None:
+    def __init__(self, a, h, rank, N=128, M=192) -> None:
         super(HyperPrior, self).__init__()
         self.a = a
         self.h = h
         self.device = torch.device('cuda:{:d}'.format(rank))
-        self.encoder = Analysis_Net(num_channel_N=128, num_channel_M=192)
-        self.decoder = Synthesis_Net(num_channel_N=128, num_channel_M=192)
-        self.encoder_hyper = Analysis_Hyper_Net(num_channel_N=128, num_channel_M=192)
-        self.decoder_hyper = Synthesis_Hyper_Net(num_channel_N=128, num_channel_M=192)
-        self.bit_estimator_hyper = BitsEstimator(128, K=4)
-        #self.entropy_coder_hyper = EntropyCoder(self.bit_estimator)
+        self.encoder = Analysis_Net(num_channel_N=N, num_channel_M=M)
+        self.decoder = Synthesis_Net(num_channel_N=N, num_channel_M=M)
+        self.encoder_hyper = Analysis_Hyper_Net(num_channel_N=N, num_channel_M=M)
+        self.decoder_hyper = Synthesis_Hyper_Net(num_channel_N=N, num_channel_M=M)
+        self.bit_estimator_hyper = BitsEstimator(N, K=4)
+        # self.entropy_coder_hyper = EntropyCoder(self.bit_estimator)
 
     def forward(self, inputs):
         """
@@ -46,7 +46,7 @@ class HyperPrior(nn.Module):
         bpp = total_bits / (img_shape[0] * img_shape[2] * img_shape[3])
 
         # total loss
-        loss = bpp + self.a.Lambda * distortion*255**2
+        loss = bpp + self.a.Lambda * distortion * 255 ** 2
 
         return loss, bpp, distortion, rec_imgs
 
@@ -66,9 +66,9 @@ class HyperPrior(nn.Module):
         """
         y = self.encoder(img)
         y_hat = self.quantize(y, is_train=False)
-        #stream, side_info = self.entropy_coder.compress(y_hat)
-        #y_hat_dec = self.entropy_coder.decompress(stream, side_info, y_hat.device)
-        #assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for y_hat not consistent !"
+        # stream, side_info = self.entropy_coder.compress(y_hat)
+        # y_hat_dec = self.entropy_coder.decompress(stream, side_info, y_hat.device)
+        # assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for y_hat not consistent !"
         rec_img = torch.clamp(self.decoder(y_hat), 0, 1)
-        #bpp = len(stream) * 8 / img.shape[2] / img.shape[3]
-        return rec_img#, bpp
+        # bpp = len(stream) * 8 / img.shape[2] / img.shape[3]
+        return rec_img  # , bpp
