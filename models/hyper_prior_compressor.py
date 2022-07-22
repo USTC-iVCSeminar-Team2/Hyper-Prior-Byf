@@ -46,7 +46,7 @@ class HyperPrior(nn.Module):
         bpp = total_bits / (img_shape[0] * img_shape[2] * img_shape[3])
 
         # total loss
-        loss = bpp + self.a.Lambda * distortion
+        loss = bpp + self.a.Lambda * distortion*255**2
 
         return loss, bpp, distortion, rec_imgs
 
