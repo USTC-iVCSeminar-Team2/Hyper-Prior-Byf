@@ -35,11 +35,12 @@ build_env(a.config_file, 'config.json', os.path.join(a.checkpoint_path, a.model_
 
 device = torch.device('cuda:0')
 compressor = HyperPrior(a, h, 0, 192, 320)
-state_dict_com = load_checkpoint(r"./checkpoint/HyperPrior/dis", device)
+state_dict_com = load_checkpoint(r"./checkpoint/HyperPrior/HyperPrior_00000500", device)
 compressor.load_state_dict(state_dict_com['compressor'])
 
-image = Image.open(r"E:\dataset\KoDak\kodim04.png").convert('RGB')
+image = Image.open(r"E:\dataset\vimoe\train\1\im4.png").convert('RGB')
 transform = transforms.Compose([
+    transforms.Resize((256,256)),
     transforms.ToTensor()
 ])
 img = transform(image)

@@ -22,7 +22,9 @@ class SetMinBoundary(Function):
         :return: grandient
         """
         input, b = ctx.saved_tensors
-        passthrough_map = input > b
+        passthrough_1 = input >= b
+        passthrough_2 = grad_output < 0
+        passthrough_map = passthrough_1 | passthrough_2
         return passthrough_map.type(grad_output.dtype) * grad_output,None
 
 
@@ -60,12 +62,11 @@ class GDN(nn.Module):
         gamma_p = SetMinBoundary.apply(gamma_p, self.gamma_bound)
         gamma = gamma_p ** 2 - self.reparam_offset
         # tensor转化为一维
-        gamma = gamma.view(self.num_output_channel, self.num_output_channel, 1, 1)
+        gamma = gamma.reshape(self.num_output_channel, self.num_output_channel, 1, 1)
 
         # normalization, resemble to 2d conv with kernel size set to 1
-        norm = F.conv2d(inputs ** 2, gamma,
+        norm = F.conv2d(torch.abs(inputs), gamma,
                         beta)  # 采用二维卷积来实现[batch_size, channel_size, H, W]*[channel_size, channel_size, 1 ,1 ]
-        norm = torch.sqrt(norm)
         if self.inverse:
             outputs = inputs * norm
         else:
