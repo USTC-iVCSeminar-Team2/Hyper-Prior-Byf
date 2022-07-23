@@ -105,7 +105,7 @@ def train(rank, a, h):
             """loss_items = compressor(img)
             loss, bit_rate, distortion = compressor.module.loss(img, loss_items) if h.num_gpus > 1 \
                                     else compressor.loss(img, loss_items)"""
-            loss, bit_rate, distortion, _ = compressor(img) if h.num_gpus > 1 \
+            loss, bit_rate, bpp_y, bpp_z, distortion, _ = compressor(img) if h.num_gpus > 1 \
                 else compressor(img)
 
             # Optimize
@@ -115,8 +115,8 @@ def train(rank, a, h):
             if rank == 0:
                 # STDOUT logging
                 if steps % a.stdout_interval == 0:
-                    print('Steps : {:d}, Bit rate : {:4.3f}, Distortion : {:4.3f}'.
-                          format(steps, bit_rate, distortion))
+                    print('Steps : {:d}, Bit rate : {:4.3f},Bpp_y:{:4.3f},Bpp_z:{:4.3f}, Distortion : {:4.3f}'.
+                          format(steps, bit_rate, bpp_y, bpp_z, distortion))
 
                 # Checkpointing
                 if steps % a.checkpoint_interval == 0 and steps != 0:

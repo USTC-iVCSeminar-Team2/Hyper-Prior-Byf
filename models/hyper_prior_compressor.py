@@ -42,13 +42,14 @@ class HyperPrior(nn.Module):
         probs = gaussian.cdf(y_hat + 0.5) - gaussian.cdf(y_hat - 0.5) + 1e-10
         total_bits_y = torch.sum(torch.clamp(-torch.log(probs) / torch.log(torch.tensor(2)), 0, 50))
         # R loss
-        total_bits = total_bits_y + total_bits_z
-        bpp = total_bits / (img_shape[0] * img_shape[2] * img_shape[3])
+        bpp_y = total_bits_y / (img_shape[0] * img_shape[2] * img_shape[3])
+        bpp_z = total_bits_z / (img_shape[0] * img_shape[2] * img_shape[3])
+        bpp = bpp_y + bpp_z
 
         # total loss
         loss = bpp + self.a.Lambda * distortion * 255 ** 2
 
-        return loss, bpp, distortion, rec_imgs
+        return loss, bpp, bpp_y, bpp_z, distortion, rec_imgs
 
     def quantize(self, y, is_train=False):
         if is_train:
