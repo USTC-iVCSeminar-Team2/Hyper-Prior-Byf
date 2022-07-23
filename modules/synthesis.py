@@ -13,8 +13,10 @@ class Synthesis_Net(nn.Module):
 
     def build_net(self):
         self.deconv1 = nn.ConvTranspose2d(self.num_channel_M, self.num_channel_N, 5, stride=2, padding=2,
-                                          output_padding=1, bias=False)
-        torch.nn.init.xavier_normal_(self.deconv1.weight.data, (math.sqrt(2)))
+                                          output_padding=1)
+        torch.nn.init.xavier_normal_(self.deconv1.weight.data, (
+            math.sqrt(2 * (self.num_channel_M + self.num_channel_N) / (self.num_channel_M + self.num_channel_M))))
+        torch.nn.init.constant_(self.deconv1.bias.data, 0.01)
 
         self.deconv2 = nn.ConvTranspose2d(self.num_channel_N, self.num_channel_N, 5, stride=2, padding=2,
                                           output_padding=1)
@@ -27,7 +29,8 @@ class Synthesis_Net(nn.Module):
         torch.nn.init.constant_(self.deconv3.bias.data, 0.01)
 
         self.deconv4 = nn.ConvTranspose2d(self.num_channel_N, 3, 5, stride=2, padding=2, output_padding=1)
-        torch.nn.init.xavier_normal_(self.deconv4.weight.data, (math.sqrt(2)))
+        torch.nn.init.xavier_normal_(self.deconv4.weight.data, (
+            math.sqrt(2 * (3 + self.num_channel_N) / (self.num_channel_N + self.num_channel_N))))
         torch.nn.init.constant_(self.deconv4.bias.data, 0.01)
 
         self.igdn1 = GDN(self.num_channel_N, inverse=True)

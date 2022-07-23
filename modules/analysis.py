@@ -13,7 +13,7 @@ class Analysis_Net(nn.Module):
 
     def build_net(self):
         self.conv1 = nn.Conv2d(3, self.num_channel_N, 5, stride=2, padding=2)
-        torch.nn.init.xavier_normal_(self.conv1.weight.data, (math.sqrt(2)))
+        torch.nn.init.xavier_normal_(self.conv1.weight.data, (math.sqrt(2*(3+self.num_channel_N)/6)))
         torch.nn.init.constant_(self.conv1.bias.data, 0.01)
 
         self.conv2 = nn.Conv2d(self.num_channel_N, self.num_channel_N, 5, stride=2, padding=2)
@@ -24,8 +24,9 @@ class Analysis_Net(nn.Module):
         torch.nn.init.xavier_normal_(self.conv3.weight.data, (math.sqrt(2)))
         torch.nn.init.constant_(self.conv3.bias.data, 0.01)
 
-        self.conv4 = nn.Conv2d(self.num_channel_N, self.num_channel_M, 5, stride=2, padding=2,bias=False)
+        self.conv4 = nn.Conv2d(self.num_channel_N, self.num_channel_M, 5, stride=2, padding=2)
         torch.nn.init.xavier_normal_(self.conv4.weight.data, (math.sqrt(2)))
+        torch.nn.init.constant_(self.conv4.bias.data, 0.01)
 
         self.gdn1 = GDN(self.num_channel_N)
         self.gdn2 = GDN(self.num_channel_N)

@@ -1,5 +1,4 @@
-from PIL import Image
-import numpy as np
-
-img = Image.open(r"C:\Users\EsakaK\Desktop\1.png")
-print(np.array(img)[:,:,3])
+import torch
+a = torch.full((4,4),2)
+b = a**3
+print(b)

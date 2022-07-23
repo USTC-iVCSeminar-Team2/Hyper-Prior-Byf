@@ -29,7 +29,7 @@ class HyperPrior(nn.Module):
         sigma = self.decoder_hyper(z_hat)
 
         # D loss
-        distortion = torch.mean((inputs - rec_imgs) ** 2)
+        distortion = torch.mean((inputs - rec_imgs).pow(2))
         # R_z loss
         total_bits_z = torch.sum(torch.clamp(
             -torch.log(
