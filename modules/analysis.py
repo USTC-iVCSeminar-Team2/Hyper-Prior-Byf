@@ -28,13 +28,13 @@ class Analysis_Net(nn.Module):
         torch.nn.init.xavier_normal_(self.conv4.weight.data, (math.sqrt(2)))
         torch.nn.init.constant_(self.conv4.bias.data, 0.01)
 
-        self.GDN1 = GDN(self.num_channel_N)
-        self.GDN2 = GDN(self.num_channel_N)
-        self.GDN3 = GDN(self.num_channel_N)
+        self.gdn1 = GDN(self.num_channel_N)
+        self.gdn2 = GDN(self.num_channel_N)
+        self.gdn3 = GDN(self.num_channel_N)
 
     def forward(self, inputs):
-        x1 = self.GDN1(self.conv1(inputs))
-        x2 = self.GDN2(self.conv2(x1))
-        x3 = self.GDN3(self.conv3(x2))
+        x1 = self.gdn1(self.conv1(inputs))
+        x2 = self.gdn2(self.conv2(x1))
+        x3 = self.gdn3(self.conv3(x2))
         y = self.conv4(x3)  # y in shape of [B,M,16,16]
         return y
