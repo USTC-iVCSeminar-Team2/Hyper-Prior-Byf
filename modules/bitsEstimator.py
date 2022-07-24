@@ -58,7 +58,11 @@ class BitsEstimator(nn.Module):
         for unit in self.units:
             x = unit(x)
         p = x.reshape(self.num_channel,size[0],*size[2:]).permute(1,0,2,3)
-        return p 
+        return p
+
+    def likelihood(self, input_):
+        likelihood_ = self.forward(input_ + 0.5) - self.forward(input_ - 0.5) + 1e-6
+        return likelihood_
 
 
 if __name__ == '__main__':

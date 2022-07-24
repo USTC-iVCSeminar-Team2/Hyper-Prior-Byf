@@ -14,7 +14,9 @@ class HyperPrior(nn.Module):
         self.encoder_hyper = Analysis_Hyper_Net(num_channel_N=N, num_channel_M=M)
         self.decoder_hyper = Synthesis_Hyper_Net(num_channel_N=N, num_channel_M=M)
         self.bit_estimator_hyper = BitsEstimator(N, K=4)
-        # self.entropy_coder_hyper = EntropyCoder(self.bit_estimator)
+        self.entropy_coder_hyper = EntropyCoder(self.bit_estimator_hyper)
+        self.entropy_model_gaussion = EntropyModelGaussion()
+        self.entropy_coder_gaussion = EntropyCoderGaussian(self.entropy_model_gaussion)
 
     def forward(self, inputs):
         """
@@ -31,16 +33,10 @@ class HyperPrior(nn.Module):
         # D loss
         distortion = torch.mean((inputs - rec_imgs).pow(2))
         # R_z loss
-        total_bits_z = torch.sum(torch.clamp(
-            -torch.log(
-                self.bit_estimator_hyper(z_hat + 0.5) - self.bit_estimator_hyper(z_hat - 0.5) + 1e-10) / torch.log(
-                torch.tensor(2)), 0, 50))
+        total_bits_z = torch.sum(torch.clamp(-1.0 * torch.log2(self.bit_estimator_hyper.likelihood(z_hat)), 0, 50))
         # R_y loss
-        mu = torch.zeros_like(y_hat)
-        sigma = torch.clamp(sigma, 1e-10, 1e10)
-        gaussian = torch.distributions.normal.Normal(mu, sigma)  # construct a gauss distribution
-        probs = gaussian.cdf(y_hat + 0.5) - gaussian.cdf(y_hat - 0.5) + 1e-10
-        total_bits_y = torch.sum(torch.clamp(-torch.log(probs) / torch.log(torch.tensor(2)), 0, 50))
+        total_bits_y = torch.sum(torch.clamp(-1.0 * torch.log2(self.entropy_model_gaussion.likelihood(y_hat, sigma)),
+                                             0, 50))
         # R loss
         bpp_y = total_bits_y / (img_shape[0] * img_shape[2] * img_shape[3])
         bpp_z = total_bits_z / (img_shape[0] * img_shape[2] * img_shape[3])
