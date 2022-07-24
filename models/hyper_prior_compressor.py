@@ -57,15 +57,27 @@ class HyperPrior(nn.Module):
             y_hat = torch.round(y)
         return y_hat
 
-    def inference(self, img):
+    def inference(self, input_):
         """
         only use in test and validate
         """
-        y = self.encoder(img)
+        x = input_
+
+        y = self.encoder(x)
         y_hat = self.quantize(y, is_train=False)
-        # stream, side_info = self.entropy_coder.compress(y_hat)
-        # y_hat_dec = self.entropy_coder.decompress(stream, side_info, y_hat.device)
-        # assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for y_hat not consistent !"
-        rec_img = torch.clamp(self.decoder(y_hat), 0, 1)
-        # bpp = len(stream) * 8 / img.shape[2] / img.shape[3]
-        return rec_img  # , bpp
+        x_hat = torch.clamp(self.decoder(y_hat), min=0, max=1)
+
+        z = self.encoder_hyper(y)
+        z_hat = self.quantize(z, is_train=False)
+        sigma = self.decoder_hyper(z_hat)
+
+        stream_z, side_info_z = self.entropy_coder_hyper.compress(z_hat)
+        z_hat_dec = self.entropy_coder_hyper.decompress(stream_z, side_info_z, self.device)
+        assert torch.equal(z_hat, z_hat_dec), "Entropy code decode for z_hat not consistent !"
+
+        stream_y, side_info_y = self.entropy_coder_gaussion.compress(y_hat, sigma)
+        y_hat_dec = self.entropy_coder_gaussion.decompress(stream_y, side_info_y, sigma, self.device)
+        assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for z_hat not consistent !"
+        bpp_y = len(stream_y) * 8 / (input_.shape[0] * input_.shape[2] * input_.shape[3])
+        bpp_z = len(stream_z) * 8 / (input_.shape[0] * input_.shape[2] * input_.shape[3])
+        return x_hat, bpp_y, bpp_z

@@ -1,17 +1,13 @@
 import torch
 import struct
 import os
-from modules import BitsEstimator
 import torchac
 
 
 class EntropyCoder():
-    '''
-    Base class for entropy coding
-    '''
 
-    def __init__(self, _bit_estimator):
-        self.bit_estimator = _bit_estimator
+    def __init__(self, entropy_model):
+        self.entropy_model = entropy_model
 
     def pmf_to_cdf(self, pmf):
         '''
@@ -43,7 +39,7 @@ class EntropyCoder():
         symbol_samples = torch.arange(symbol_min, symbol_max + 1).to(inputs.device)
         symbol_samples = symbol_samples.reshape(1, 1, 1, -1).repeat(B, C, 1, 1)  # B, C, H, W
         # Get the pmf and cdf of the above symbols
-        pmf = self.bit_estimator(symbol_samples + 0.5) - self.bit_estimator(symbol_samples - 0.5)
+        pmf = self.entropy_model.likelihood(symbol_samples).detach()
         pmf = torch.clamp(pmf, min=0.0, max=1.0)
         cdf = self.pmf_to_cdf(pmf)
         cdf = cdf.reshape(B, C, 1, 1, -1).repeat(1, 1, H, W, 1).to(torch.device('cpu'))
@@ -63,15 +59,15 @@ class EntropyCoder():
         :return: decoded y_hat as in torch.float32, shape
         '''
         (symbol_min, symbol_max, H, W) = side_info
-        B, C = 1, 192
+        B, C = 1, self.entropy_model.num_channel
         # Get a series of symbols according to the minimum and maximum of y_hat
         symbol_samples = torch.arange(symbol_min, symbol_max + 1).to(device)
         symbol_samples = symbol_samples.reshape(1, 1, 1, -1).repeat(B, C, 1, 1)  # B, C, H, W
         # Get the pmf and cdf of the above symbols
-        pmf = self.bit_estimator(symbol_samples + 0.5) - self.bit_estimator(symbol_samples - 0.5).detach()
+        pmf = self.entropy_model.likelihood(symbol_samples).detach()
         pmf = torch.clamp(pmf, min=0.0, max=1.0)
         cdf = self.pmf_to_cdf(pmf)
-        cdf = cdf.reshape(1, 192, 1, 1, -1).repeat(1, 1, H, W, 1).to(torch.device('cpu'))
+        cdf = cdf.reshape(1, C, 1, 1, -1).repeat(1, 1, H, W, 1).to(torch.device('cpu'))
         # Get the decoded y_hat, which starts from 0
         y_hat_dec = torchac.decode_float_cdf(cdf, stream, needs_normalization=True).to(device).to(torch.float)
         # Shift to the right data range
@@ -108,9 +104,48 @@ class EntropyCoder():
         return self.decompress(stream[0:-16], (symbol_min, symbol_max, H, W), device=device)
 
 
-if __name__ == '__main__':
-    bit_estimator = BitsEstimator(192, K=4)
-    entropy_coder = EntropyCoder(bit_estimator)
-    y_hat = (torch.randn(1, 192, 16, 16) * 10).int()
-    print(y_hat.type())
-    entropy_coder.compress(y_hat)
+class EntropyCoderGaussian(EntropyCoder):
+    def __init__(self, entropy_model):
+        super(EntropyCoderGaussian, self).__init__(entropy_model)
+
+    @torch.no_grad()
+    def compress(self, inputs, sigma):
+        assert inputs.shape == sigma.shape, "Shape dismatch between y and gaussian sigma"
+        (B, C, H, W) = inputs.shape
+        assert B == 1, "Entropy coder only supports batch size one currently"
+        # Get a series of symbols according to the minimum and maximum of y_hat
+        symbol_max = torch.max(inputs).detach().to(torch.float)
+        symbol_min = torch.min(inputs).detach().to(torch.float)
+        # Get the pmf and cdf of the above symbols
+        symbol_samples = torch.arange(symbol_min, symbol_max + 1).to(inputs.device)
+        symbol_samples = symbol_samples.reshape((1, 1, 1, -1)).repeat((B, C, H * W, 1))     # B, C, H*W, L
+        sigma = sigma.reshape((B, C, H * W, 1))
+        pmf = self.entropy_model.likelihood(symbol_samples, sigma).detach()
+        pmf = torch.clamp(pmf, min=0.0, max=1.0)
+        cdf = self.pmf_to_cdf(pmf)
+        cdf = cdf.reshape(B, C, H, W, -1).to(torch.device('cpu'))
+        # Get the decoded y_hat, which starts from 0
+        inputs_norm = (inputs - symbol_min).to(torch.int16).to(torch.device('cpu'))
+        stream = torchac.encode_float_cdf(cdf, inputs_norm, needs_normalization=True)
+        # The range of the symbols and the latent y shape needs to be transmitted
+        side_info = (int(symbol_min), int(symbol_max), H, W)
+        return stream, side_info
+
+    @torch.no_grad()
+    def decompress(self, stream, side_info, sigma, device=torch.device('cpu')):
+        (symbol_min, symbol_max, H, W) = side_info
+        assert (H == sigma.shape[2]) and (W == sigma.shape[3]), "Shape dismatch between y and gaussian sigma"
+        B, C = 1, sigma.shape[1]
+        # Get a series of symbols according to the minimum and maximum of y_hat
+        symbol_samples = torch.arange(symbol_min, symbol_max + 1).to(device)
+        symbol_samples = symbol_samples.reshape((1, 1, 1, -1)).repeat((B, C, H * W, 1))  # B, C, H*W, L
+        sigma = sigma.reshape((B, C, H * W, 1))
+        # Get the pmf and cdf of the above symbols
+        pmf = self.entropy_model.likelihood(symbol_samples, sigma).detach()
+        pmf = torch.clamp(pmf, min=0.0, max=1.0)
+        cdf = self.pmf_to_cdf(pmf)
+        cdf = cdf.reshape(B, C, H, W, -1).to(torch.device('cpu'))
+        y_hat_dec = torchac.decode_float_cdf(cdf, stream, needs_normalization=True).to(device).to(torch.float)
+        # Shift to the right data range
+        y_hat_dec += symbol_min
+        return y_hat_dec
