@@ -20,7 +20,7 @@ def test(rank, a, h):
     test_loader = DataLoader(dataset=test_set, batch_size=1)
 
     # Model
-    compressor = HyperPrior(a=a, h=h, rank=rank, N=192, M=320)
+    compressor = HyperPrior(a=a, h=h, rank=rank, N=128, M=192)
     compressor.load_state_dict(torch.load(a.checkpoint_path, map_location=device)['compressor'])
     compressor.to(device)
     print(compressor)
@@ -62,7 +62,7 @@ def main():
     parser_.add_argument('--test_dir', default="E:\dataset\KoDak", type=str)
     parser_.add_argument('--config_file', default="./configs/config.json", type=str)
     parser_.add_argument('--lambda_', default=0.0067, type=float)
-    parser_.add_argument('--checkpoint_path', default="./checkpoint/HyperPrior/0067best",
+    parser_.add_argument('--checkpoint_path', default="./checkpoint/HyperPrior/0130",
                          type=str)
     a = parser_.parse_args()
 
