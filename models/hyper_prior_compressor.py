@@ -1,6 +1,15 @@
+import glob
+import os.path
+
 import torch
 import torch.nn as nn
+import torchvision.transforms
+
 from modules import *
+import time
+from PIL import Image
+
+from utils import load_checkpoint
 
 
 class HyperPrior(nn.Module):
@@ -58,26 +67,84 @@ class HyperPrior(nn.Module):
         return y_hat
 
     def inference(self, input_):
-        """
-        only use in test and validate
-        """
+        time_enc_start = time.time()
         x = input_
-
         y = self.encoder(x)
         y_hat = self.quantize(y, is_train=False)
-        x_hat = torch.clamp(self.decoder(y_hat), min=0, max=1)
 
-        z = self.encoder_hyper(y)
+        z = self.decoder(torch.abs(y))
         z_hat = self.quantize(z, is_train=False)
-        sigma = self.decoder_hyper(z_hat)
+        scale = self.encoder_hyper(z_hat)
 
         stream_z, side_info_z = self.entropy_coder_hyper.compress(z_hat)
-        z_hat_dec = self.entropy_coder_hyper.decompress(stream_z, side_info_z, self.device)
-        assert torch.equal(z_hat, z_hat_dec), "Entropy code decode for z_hat not consistent !"
+        stream_y, side_info_y = self.entropy_coder_gaussion.compress(y_hat, scale)
+        time_enc_end = time.time()
 
-        stream_y, side_info_y = self.entropy_coder_gaussion.compress(y_hat, sigma)
-        y_hat_dec = self.entropy_coder_gaussion.decompress(stream_y, side_info_y, sigma, self.device)
-        assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for z_hat not consistent !"
+        time_dec_start = time.time()
+        z_hat_dec = self.entropy_coder_hyper.decompress(stream_z, side_info_z, self.device)
+        # assert torch.equal(z_hat, z_hat_dec), "Entropy code decode for z_hat not consistent !"
+        scale = self.decoder_hyper(z_hat_dec)
+        y_hat_dec = self.entropy_coder_gaussion.decompress(stream_y, side_info_y, scale, self.device)
+        # assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for z_hat not consistent !"
+        x_hat = torch.clamp(self.decoder(y_hat_dec), min=0, max=1)
+        time_dec_end = time.time()
+        print("{:.4f}, {:.4f}".format((time_enc_end - time_enc_start), (time_dec_end - time_dec_start)))
+
+        _ = 0
         bpp_y = len(stream_y) * 8 / (input_.shape[0] * input_.shape[2] * input_.shape[3])
         bpp_z = len(stream_z) * 8 / (input_.shape[0] * input_.shape[2] * input_.shape[3])
         return x_hat, bpp_y, bpp_z
+
+    def get_avg_time(self, kodak_path=""):
+        img_files = glob.glob(os.path.join(kodak_path, "kodim[0-9]*.png"))
+        model_time = 0
+        entropy_time = 0
+        Y_L = 0
+        ck_path = r"E:\Git_repos\Hyper-Prior-Byf\checkpoint\HyperPrior"
+        dict_name = ['0067', '0130', '0250', '0483']
+        for name in dict_name:
+            ck_file = os.path.join(ck_path, name)
+            state_dict_com = load_checkpoint(ck_file, torch.device('cuda:0'))
+            self.load_state_dict(state_dict_com['compressor'])
+            for img_file in img_files:
+                img = Image.open(img_file)
+                transform = torchvision.transforms.ToTensor()
+                x = transform(img).unsqueeze(0).to(torch.device('cuda'))
+                time_model_1_start = time.time()
+                y = self.encoder(x)
+                y_hat = self.quantize(y, is_train=False)
+
+                z = self.encoder_hyper(y)
+                z_hat = self.quantize(z, is_train=False)
+                scale = self.decoder_hyper(z_hat)
+                time_model_1_end = time.time()
+                time_entropy_1_start = time.time()
+                stream_z, side_info_z = self.entropy_coder_hyper.compress(z_hat)
+                stream_y, side_info_y = self.entropy_coder_gaussion.compress(y_hat, scale)
+                y_min, y_max, _, _ = side_info_y
+                Y_L += y_max-y_min
+
+                z_hat_dec = self.entropy_coder_hyper.decompress(stream_z, side_info_z, self.device)
+                time_entropy_1_end = time.time()
+                time_model_2_start = time.time()
+                scale = self.decoder_hyper(z_hat_dec)
+                time_model_2_end = time.time()
+                time_entropy_2_start = time.time()
+                y_hat_dec = self.entropy_coder_gaussion.decompress(stream_y, side_info_y, scale, self.device)
+                time_entropy_2_end = time.time()
+                time_model_3_start = time.time()
+                x_hat = torch.clamp(self.decoder(y_hat_dec), min=0, max=1)
+                time_model_3_end = time.time()
+
+                model_time += ((time_model_3_end - time_model_3_start) + (time_model_2_end - time_model_2_start) + (
+                        time_model_1_end - time_model_1_start))
+                entropy_time += (time_entropy_2_end - time_entropy_2_start) + (
+                        time_entropy_1_end - time_entropy_1_start)
+
+            print('Lambda:{}, EntropyCode:{:.4f}, ModelForward:{:.4f},Y-L:{}'.format(name, entropy_time / 24,
+                                                                                     model_time / 24, Y_L/24))
+
+
+if __name__ == '__main__':
+    h = HyperPrior(None, None, 0).cuda()
+    h.get_avg_time("E:\dataset\KoDak")

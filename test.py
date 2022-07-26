@@ -62,7 +62,7 @@ def main():
     parser_.add_argument('--test_dir', default="E:\dataset\KoDak", type=str)
     parser_.add_argument('--config_file', default="./configs/config.json", type=str)
     parser_.add_argument('--lambda_', default=0.0067, type=float)
-    parser_.add_argument('--checkpoint_path', default="./checkpoint/HyperPrior/0130",
+    parser_.add_argument('--checkpoint_path', default="./checkpoint/HyperPrior/0483",
                          type=str)
     a = parser_.parse_args()
 

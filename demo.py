@@ -34,8 +34,8 @@ h = AttrDict(json_config)
 build_env(a.config_file, 'config.json', os.path.join(a.checkpoint_path, a.model_name))
 
 device = torch.device('cuda:0')
-compressor = HyperPrior(a, h, 0, 192, 320)
-state_dict_com = load_checkpoint(r"checkpoint/HyperPrior/130", device)
+compressor = HyperPrior(a, h, 0, 128, 192)
+state_dict_com = load_checkpoint(r"checkpoint/HyperPrior/0130", device)
 compressor.load_state_dict(state_dict_com['compressor'])
 
 image = Image.open(r"E:\dataset\KoDak\kodim04.png").convert('RGB')
