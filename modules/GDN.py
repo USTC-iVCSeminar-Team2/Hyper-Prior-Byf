@@ -25,12 +25,12 @@ class SetMinBoundary(Function):
         passthrough_1 = input >= b
         passthrough_2 = grad_output < 0
         passthrough_map = passthrough_1 | passthrough_2
-        return passthrough_map.type(grad_output.dtype) * grad_output,None
+        return passthrough_map.type(grad_output.dtype) * grad_output, None
 
 
 class GDN(nn.Module):
     def __init__(self, num_output_channel, beta_min=1e-6, beta_init=0.1, gamma_min=1e-6, gamma_init=0.1,
-                 min_boundary=2**-5, inverse=False):
+                 min_boundary=2 ** -5, inverse=False):
         """
         :param beta_min: a small positive value to ensure beta' in range(2e-5,...)
         :param gamma_init: gamma initiated value
@@ -45,12 +45,16 @@ class GDN(nn.Module):
         self.reparam_offset = min_boundary ** 2
         self.beta_bound = (beta_min + self.reparam_offset) ** 0.5
         self.gamma_bound = (gamma_min + self.reparam_offset) ** 0.5
-
+        # cos arrange
+        self.I = torch.arange(self.num_output_channel).repeat(self.num_output_channel)
+        self.J = torch.einsum('ij->ji',
+                              torch.arange(self.num_output_channel).repeat((self.num_output_channel, 1))).reshape(-1)
         # beta, gamma
         self.beta = nn.Parameter(torch.sqrt(torch.ones(num_output_channel) * beta_init + self.reparam_offset))
         self.gamma = nn.Parameter(torch.sqrt(torch.eye(num_output_channel) * gamma_init + self.reparam_offset))
 
     def forward(self, inputs):
+        B, C, H, W = inputs.size()
         # transpose average
         gamma_T = self.gamma.transpose(0, 1)
         gamma_p = (self.gamma + gamma_T) / 2
@@ -65,8 +69,17 @@ class GDN(nn.Module):
         gamma = gamma.reshape(self.num_output_channel, self.num_output_channel, 1, 1)
 
         # normalization, resemble to 2d conv with kernel size set to 1
-        norm = F.conv2d(torch.abs(inputs), gamma,
-                        beta)  # 采用二维卷积来实现[batch_size, channel_size, H, W]*[channel_size, channel_size, 1 ,1 ]
+        # calculate cosine_similarity between each channel
+        # x = inputs.view((B, C, H * W))
+        # cos_similarities = map(lambda i, j: F.cosine_similarity(x[:, i], x[:, j], dim=1), self.I, self.J)
+        # cos_similarities = torch.stack(list(cos_similarities), 1).reshape(B, C, C)
+        x = torch.einsum('qwer->wqer', inputs)
+        x = x.reshape((C, 1, B * H * W))
+        cos_similarities = map(lambda i, j: F.cosine_similarity(x[j], x[i]), self.I, self.J)
+        cos_similarities = torch.stack(list(cos_similarities), 1).reshape((C, C, 1, 1))
+        weight = gamma * cos_similarities
+        norm = F.conv2d(torch.abs(inputs), weight, beta)
+
         if self.inverse:
             outputs = inputs * norm
         else:
@@ -75,6 +88,7 @@ class GDN(nn.Module):
 
 
 if __name__ == '__main__':
-    a = torch.randn(4,2,2)
-    b = torch.round(a)
-    print(a)
+    a = torch.randn(4, 4, 2, 2)
+    gdn = GDN(num_output_channel=4)
+    b = gdn(a)
+    print(b.size())
