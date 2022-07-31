@@ -67,29 +67,20 @@ class HyperPrior(nn.Module):
         return y_hat
 
     def inference(self, input_):
-        time_enc_start = time.time()
         x = input_
         y = self.encoder(x)
         y_hat = self.quantize(y, is_train=False)
 
-        z = self.decoder(torch.abs(y))
+        z = self.encoder_hyper(y_hat)
         z_hat = self.quantize(z, is_train=False)
-        scale = self.encoder_hyper(z_hat)
+        scale = self.decoder_hyper(z_hat)
 
         stream_z, side_info_z = self.entropy_coder_hyper.compress(z_hat)
         stream_y, side_info_y = self.entropy_coder_gaussion.compress(y_hat, scale)
-        time_enc_end = time.time()
 
-        time_dec_start = time.time()
-        z_hat_dec = self.entropy_coder_hyper.decompress(stream_z, side_info_z, self.device)
-        # assert torch.equal(z_hat, z_hat_dec), "Entropy code decode for z_hat not consistent !"
-        scale = self.decoder_hyper(z_hat_dec)
         y_hat_dec = self.entropy_coder_gaussion.decompress(stream_y, side_info_y, scale, self.device)
         # assert torch.equal(y_hat, y_hat_dec), "Entropy code decode for z_hat not consistent !"
         x_hat = torch.clamp(self.decoder(y_hat_dec), min=0, max=1)
-        time_dec_end = time.time()
-        print("{:.4f}, {:.4f}".format((time_enc_end - time_enc_start), (time_dec_end - time_dec_start)))
-
         _ = 0
         bpp_y = len(stream_y) * 8 / (input_.shape[0] * input_.shape[2] * input_.shape[3])
         bpp_z = len(stream_z) * 8 / (input_.shape[0] * input_.shape[2] * input_.shape[3])

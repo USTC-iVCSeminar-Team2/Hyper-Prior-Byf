@@ -127,39 +127,39 @@ def train(rank, a, h):
                                      'steps': steps,
                                      'epoch': epoch})
 
-                    # Tensorboard summary logging
-                    if steps % a.summary_interval == 0:
-                        sw.add_scalar("training/loss", loss, steps)
-                        sw.add_scalar("training/bit_rate_y", bpp_y, steps)
-                        sw.add_scalar("training/bit_rate_z", bpp_z, steps)
-                        sw.add_scalar("training/distortion", distortion, steps)
+                # Tensorboard summary logging
+                if steps % a.summary_interval == 0:
+                    sw.add_scalar("training/loss", loss, steps)
+                    sw.add_scalar("training/bit_rate_y", bpp_y, steps)
+                    sw.add_scalar("training/bit_rate_z", bpp_z, steps)
+                    sw.add_scalar("training/distortion", distortion, steps)
 
-                    # Validation
-                    if steps % a.validation_interval == 0 and steps != 0:
-                        compressor.eval()
-                        torch.cuda.empty_cache()
-                        val_err_distortion = 0
-                        val_bit_rate_y = 0
-                        val_bit_rate_z = 0
+                # Validation
+                if steps % a.validation_interval == 0 and steps != 0:
+                    compressor.eval()
+                    torch.cuda.empty_cache()
+                    val_err_distortion = 0
+                    val_bit_rate_y = 0
+                    val_bit_rate_z = 0
 
-                        with torch.no_grad():
-                            for j, batch in enumerate(validation_loader):
-                                img = batch
-                                img = img.to(device, non_blocking=True)
-                                rec_img, val_bit_rate_y_, val_bit_rate_z_ = compressor.module.inference(
-                                    img) if h.num_gpus > 1 else compressor.inference(img)
+                    with torch.no_grad():
+                        for j, batch in enumerate(validation_loader):
+                            img = batch
+                            img = img.to(device, non_blocking=True)
+                            rec_img, val_bit_rate_y_, val_bit_rate_z_ = compressor.module.inference(
+                                img) if h.num_gpus > 1 else compressor.inference(img)
 
-                                val_err_distortion += F.mse_loss(img, rec_img).item()
-                                val_bit_rate_y += val_bit_rate_y_
-                                val_bit_rate_z += val_bit_rate_z_
+                            val_err_distortion += F.mse_loss(img, rec_img).item()
+                            val_bit_rate_y += val_bit_rate_y_
+                            val_bit_rate_z += val_bit_rate_z_
 
-                            val_distortion = val_err_distortion / (j + 1)
-                            val_bit_rate_y = val_bit_rate_y / (j + 1)
-                            val_bit_rate_z = val_bit_rate_z / (j + 1)
+                        val_distortion = val_err_distortion / (j + 1)
+                        val_bit_rate_y = val_bit_rate_y / (j + 1)
+                        val_bit_rate_z = val_bit_rate_z / (j + 1)
 
-                            sw.add_scalar("validation/distortion", val_distortion, steps)
-                            sw.add_scalar("validation/bit_rate_y", val_bit_rate_y, steps)
-                            sw.add_scalar("validation/bit_rate_z", val_bit_rate_z, steps)
+                        sw.add_scalar("validation/distortion", val_distortion, steps)
+                        sw.add_scalar("validation/bit_rate_y", val_bit_rate_y, steps)
+                        sw.add_scalar("validation/bit_rate_z", val_bit_rate_z, steps)
 
                     compressor.train()
 

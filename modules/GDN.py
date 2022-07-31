@@ -46,9 +46,10 @@ class GDN(nn.Module):
         self.beta_bound = (beta_min + self.reparam_offset) ** 0.5
         self.gamma_bound = (gamma_min + self.reparam_offset) ** 0.5
         # cos arrange
-        self.I = torch.arange(self.num_output_channel).repeat(self.num_output_channel)
-        self.J = torch.einsum('ij->ji',
-                              torch.arange(self.num_output_channel).repeat((self.num_output_channel, 1))).reshape(-1)
+        # self.I = torch.arange(self.num_output_channel).repeat(self.num_output_channel)
+        # self.J = torch.einsum('ij->ji',
+        #                       torch.arange(self.num_output_channel).repeat((self.num_output_channel, 1))).reshape(
+        #     -1)
         # beta, gamma
         self.beta = nn.Parameter(torch.sqrt(torch.ones(num_output_channel) * beta_init + self.reparam_offset))
         self.gamma = nn.Parameter(torch.sqrt(torch.eye(num_output_channel) * gamma_init + self.reparam_offset))
@@ -65,19 +66,23 @@ class GDN(nn.Module):
 
         gamma_p = SetMinBoundary.apply(gamma_p, self.gamma_bound)
         gamma = gamma_p ** 2 - self.reparam_offset
-        # tensor转化为一维
-        gamma = gamma.reshape(self.num_output_channel, self.num_output_channel, 1, 1)
 
         # normalization, resemble to 2d conv with kernel size set to 1
         # calculate cosine_similarity between each channel
         # x = inputs.view((B, C, H * W))
         # cos_similarities = map(lambda i, j: F.cosine_similarity(x[:, i], x[:, j], dim=1), self.I, self.J)
         # cos_similarities = torch.stack(list(cos_similarities), 1).reshape(B, C, C)
-        x = torch.einsum('qwer->wqer', inputs)
-        x = x.reshape((C, 1, B * H * W))
-        cos_similarities = map(lambda i, j: F.cosine_similarity(x[j], x[i]), self.I, self.J)
-        cos_similarities = torch.stack(list(cos_similarities), 1).reshape((C, C, 1, 1))
-        weight = gamma * cos_similarities
+        with torch.no_grad():
+            X = torch.einsum('qwer->wqer', inputs)
+            X = X.reshape(C, B * H * W)
+            A = torch.einsum('ij,jk->ik', X, X.permute(1, 0))
+            norm = torch.norm(X, p=2, dim=1).unsqueeze(0)
+            B = torch.einsum('ij,jk->ik', norm.permute(1, 0), norm)
+            cos_similarities = A / (B + 1e-6)
+
+        weight = gamma * (1 + cos_similarities)/2
+        # tensor转化为一维
+        weight = weight.reshape(self.num_output_channel, self.num_output_channel, 1, 1)
         norm = F.conv2d(torch.abs(inputs), weight, beta)
 
         if self.inverse:
@@ -88,7 +93,8 @@ class GDN(nn.Module):
 
 
 if __name__ == '__main__':
-    a = torch.randn(4, 4, 2, 2)
-    gdn = GDN(num_output_channel=4)
+    a = torch.randn(4, 5, 2, 2)
+    gdn = GDN(num_output_channel=5)
     b = gdn(a)
-    print(b.size())
+    print(a.max())
+    print(b.max())
