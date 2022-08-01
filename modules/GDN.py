@@ -67,23 +67,33 @@ class GDN(nn.Module):
         gamma_p = SetMinBoundary.apply(gamma_p, self.gamma_bound)
         gamma = gamma_p ** 2 - self.reparam_offset
 
-        # normalization, resemble to 2d conv with kernel size set to 1
-        # calculate cosine_similarity between each channel
-        # x = inputs.view((B, C, H * W))
-        # cos_similarities = map(lambda i, j: F.cosine_similarity(x[:, i], x[:, j], dim=1), self.I, self.J)
-        # cos_similarities = torch.stack(list(cos_similarities), 1).reshape(B, C, C)
-        with torch.no_grad():
-            X = torch.einsum('qwer->wqer', inputs)
-            X = X.reshape(C, B * H * W)
-            A = torch.einsum('ij,jk->ik', X, X.permute(1, 0))
-            norm = torch.norm(X, p=2, dim=1).unsqueeze(0)
-            B = torch.einsum('ij,jk->ik', norm.permute(1, 0), norm)
-            cos_similarities = A / (B + 1e-6)
+        # with torch.no_grad():
+        #     X = torch.einsum('qwer->wqer', inputs)
+        #     X = X.reshape(C, B * H * W)
+        #     A = torch.einsum('ij,jk->ik', X, X.permute(1, 0))
+        #     norm = torch.norm(X, p=2, dim=1).unsqueeze(0)
+        #     B = torch.einsum('ij,jk->ik', norm.permute(1, 0), norm)
+        #     cos_similarities = A / (B + 1e-6)
+        #
+        # weight = gamma * (1 + cos_similarities)/2
+        # # tensor转化为一维
+        # weight = weight.reshape(self.num_output_channel, self.num_output_channel, 1, 1)
+        # norm = F.conv2d(torch.abs(inputs), weight, beta)
 
-        weight = gamma * (1 + cos_similarities)/2
-        # tensor转化为一维
-        weight = weight.reshape(self.num_output_channel, self.num_output_channel, 1, 1)
-        norm = F.conv2d(torch.abs(inputs), weight, beta)
+        # 计算余弦相似度 v2
+        with torch.no_grad():
+            X = inputs
+            X = X.view(B, C, -1)
+            inner_pro = torch.einsum('oij,ojk->oik', X, X.permute(0, 2, 1))
+            norm = torch.norm(X, p=2, dim=2).unsqueeze(0)
+            norm_pro = torch.einsum('oij,ojk->oik', norm.permute(0, 2, 1), norm)
+            cos_similarities = inner_pro / (norm_pro + 1e-6)
+        # 通道拆分运算
+        weight = gamma * (1 + cos_similarities)
+        weight = weight.view(-1, C, 1, 1)
+        beta = beta.repeat(B)
+        X = inputs.view(-1, H, W)
+        norm = F.conv2d(torch.abs(X), weight, beta, groups=B).view(inputs.size())
 
         if self.inverse:
             outputs = inputs * norm
